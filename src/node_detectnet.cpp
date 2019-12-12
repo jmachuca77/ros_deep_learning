@@ -29,6 +29,12 @@
 #include <jetson-inference/detectNet.h>
 #include <jetson-utils/cudaMappedMemory.h>
 
+#include <image_transport/image_transport.h>
+#include <opencv2/core.hpp>
+#include <opencv2/imgproc/imgproc.hpp>
+#include <opencv2/highgui/highgui.hpp>
+#include <cv_bridge/cv_bridge.h>
+
 #include "image_converter.h"
 
 #include <unordered_map>
@@ -39,9 +45,13 @@ detectNet* 	 net = NULL;
 imageConverter* cvt = NULL;
 
 ros::Publisher* detection_pub = NULL;
+image_transport::Publisher* overlay_pub = NULL;
 
 vision_msgs::VisionInfo info_msg;
 
+// Overlay Image
+cv::Mat cv_image;
+sensor_msgs::ImagePtr pub_detectnet_image;
 
 // callback triggered when a new subscriber connected to vision_info topic
 void info_connect( const ros::SingleSubscriberPublisher& pub )
@@ -54,6 +64,10 @@ void info_connect( const ros::SingleSubscriberPublisher& pub )
 // input image subscriber callback
 void img_callback( const sensor_msgs::ImageConstPtr& input )
 {
+	// Create an image copy for drawing bounding boxes
+	cv::Mat cv_im = cv_bridge::toCvCopy(input, "bgr8")->image; 
+  	cv_image = cv_im;    
+
 	// convert the image to reside on GPU
 	if( !cvt || !cvt->Convert(input) )
 	{
@@ -63,6 +77,9 @@ void img_callback( const sensor_msgs::ImageConstPtr& input )
 
 	// classify the image
 	detectNet::Detection* detections = NULL;
+	
+	uint32_t lastClass = 0;
+    int lastStart = 0;
 
 	const int numDetections = net->Detect(cvt->ImageGPU(), cvt->GetWidth(), cvt->GetHeight(), &detections, detectNet::OVERLAY_NONE);
 
@@ -88,6 +105,18 @@ void img_callback( const sensor_msgs::ImageConstPtr& input )
 			printf("object %i class #%u (%s)  confidence=%f\n", n, det->ClassID, net->GetClassDesc(det->ClassID), det->Confidence);
 			printf("object %i bounding box (%f, %f)  (%f, %f)  w=%f  h=%f\n", n, det->Left, det->Top, det->Right, det->Bottom, det->Width(), det->Height()); 
 			
+			// draw a green line(CW) on the overlay copy
+			cv::line(cv_image, cv::Point(det->Left,det->Top), cv::Point(det->Right,det->Top),cv::Scalar(0, 255, 0),2);
+			cv::line(cv_image, cv::Point(det->Right,det->Top), cv::Point(det->Right,det->Bottom),cv::Scalar(0, 255, 0),2);
+			cv::line(cv_image, cv::Point(det->Right,det->Bottom), cv::Point(det->Left,det->Bottom),cv::Scalar(0, 255, 0),2);
+			cv::line(cv_image, cv::Point(det->Left,det->Bottom), cv::Point(det->Left,det->Top),cv::Scalar(0, 255, 0),2);
+
+			std::ostringstream label_test;
+			label_test << net->GetClassDesc(det->ClassID) << " " << std::to_string(det->Confidence);
+			//std::string det_label = net->GetClassDesc(det->ClassID) + std::to_string(" ") + std::to_string(det->Confidence);
+			cv::putText(cv_image, label_test.str(), cv::Point(det->Left,det->Top), CV_FONT_HERSHEY_DUPLEX, 1, cvScalar(0,255,255), 1, CV_AA);
+
+
 			// create a detection sub-message
 			vision_msgs::Detection2D detMsg;
 
@@ -115,6 +144,9 @@ void img_callback( const sensor_msgs::ImageConstPtr& input )
 		// publish the detection message
 		detection_pub->publish(msg);
 	}
+	// publish overlay image
+	pub_detectnet_image = cv_bridge::CvImage(std_msgs::Header(), "bgr8", cv_image).toImageMsg();
+	overlay_pub->publish(pub_detectnet_image);
 }
 
 
@@ -231,10 +263,21 @@ int main(int argc, char **argv)
 
 
 	/*
-	 * advertise publisher topics
-	 */
+	* advertise publisher topics
+	*/
 	ros::Publisher pub = private_nh.advertise<vision_msgs::Detection2DArray>("detections", 25);
 	detection_pub = &pub; // we need to publish from the subscriber callback
+
+	/*
+	* advertise image publisher
+	*/
+	// setup image transport
+  	image_transport::ImageTransport it(nh);
+   
+  	// publisher for output image
+  	image_transport::Publisher img_pub = it.advertise("detectnet/image", 1);
+	//ros::Publisher img_pub = private_nh.advertise<sensor_msgs::ImagePtr>("overlay", 1);
+	overlay_pub = &img_pub; // we need to publish from the subscriver callback
 
 	// the vision info topic only publishes upon a new connection
 	ros::Publisher info_pub = private_nh.advertise<vision_msgs::VisionInfo>("vision_info", 1, (ros::SubscriberStatusCallback)info_connect);
@@ -246,7 +289,7 @@ int main(int argc, char **argv)
 	//image_transport::ImageTransport it(nh);	// BUG - stack smashing on TX2?
 	//image_transport::Subscriber img_sub = it.subscribe("image", 1, img_callback);
 	ros::Subscriber img_sub = private_nh.subscribe("image_in", 5, img_callback);
-	
+
 
 	/*
 	 * wait for messages

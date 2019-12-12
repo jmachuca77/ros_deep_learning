@@ -4,6 +4,7 @@ project(ros_deep_learning)
 
 # locate dependencies
 find_package(catkin REQUIRED COMPONENTS
+  cv_bridge
   image_transport
   roscpp
   sensor_msgs
@@ -24,7 +25,7 @@ find_package(CUDA REQUIRED)
 # define catkin package
 catkin_package(
     LIBRARIES ros_deep_learning_nodelets
-    CATKIN_DEPENDS nodelet roscpp image_transport sensor_msgs
+    CATKIN_DEPENDS nodelet roscpp cv_bridge image_transport sensor_msgs
 )
 
 # include paths
