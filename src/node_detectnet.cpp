@@ -111,7 +111,7 @@ void img_callback( const sensor_msgs::ImageConstPtr& input )
 			cv::line(cv_image, cv::Point(det->Right,det->Bottom), cv::Point(det->Left,det->Bottom),cv::Scalar(0, 255, 0),2);
 			cv::line(cv_image, cv::Point(det->Left,det->Bottom), cv::Point(det->Left,det->Top),cv::Scalar(0, 255, 0),2);
 
-			std::string det_label = net->GetClassDesc(det->ClassID) + det->Confidence;
+			std::string det_label = net->GetClassDesc(det->ClassID) + std::to_string(det->Confidence);
 			cv::putText(cv_image, det_label, cv::Point(det->Left,det->Top), CV_FONT_HERSHEY_DUPLEX, 1.5, cvScalar(255,255,0), 1, CV_AA);
 
     
