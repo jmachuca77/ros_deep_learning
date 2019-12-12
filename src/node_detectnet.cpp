@@ -45,7 +45,7 @@ detectNet* 	 net = NULL;
 imageConverter* cvt = NULL;
 
 ros::Publisher* detection_pub = NULL;
-ros::Publisher* overlay_pub = NULL;
+image_transport::Publisher* overlay_pub = NULL;
 
 vision_msgs::VisionInfo info_msg;
 
@@ -277,7 +277,12 @@ int main(int argc, char **argv)
 	/*
 	* advertise image publisher
 	*/
-	ros::Publisher img_pub = private_nh.advertise<sensor_msgs::ImagePtr>("overlay", 1);
+	// setup image transport
+  	image_transport::ImageTransport it(nh);
+   
+  	// publisher for output image
+  	image_transport::Publisher img_pub = it.advertise("detectnet/image", 1);
+	//ros::Publisher img_pub = private_nh.advertise<sensor_msgs::ImagePtr>("overlay", 1);
 	overlay_pub = &img_pub; // we need to publish from the subscriver callback
 
 	// the vision info topic only publishes upon a new connection
