@@ -45,6 +45,7 @@ detectNet* 	 net = NULL;
 imageConverter* cvt = NULL;
 
 ros::Publisher* detection_pub = NULL;
+ros::Publisher* overlay_pub = NULL;
 
 vision_msgs::VisionInfo info_msg;
 
