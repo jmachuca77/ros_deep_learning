@@ -148,11 +148,10 @@ void img_callback( const sensor_msgs::ImageConstPtr& input )
 
 		// publish the detection message
 		detection_pub->publish(msg);
-
-		// publish overlay image
-		pub_detectnet_image = cv_bridge::CvImage(std_msgs::Header(), "bgr8", cv_image).toImageMsg();
-		overlay_pub->publish(pub_detectnet_image);
 	}
+	// publish overlay image
+	pub_detectnet_image = cv_bridge::CvImage(std_msgs::Header(), "bgr8", cv_image).toImageMsg();
+	overlay_pub->publish(pub_detectnet_image);
 }
 
 
